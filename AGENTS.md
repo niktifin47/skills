@@ -4,9 +4,7 @@ This file is the single source of guidance for coding agents working in this rep
 
 ## What this repository is
 
-A collection of agent skills for building great product interfaces (typography, colors, UI polish), distributed two ways: via `npx skills add jakubkrehel/skills` and as the Claude Code plugin `interfaces` served by the marketplace in this same repository. It is primarily documentation, with reusable drawing assets and helper scripts under `teardown`. There is no repository-wide build, lint or test tooling.
-
-`teardown` carries its own checks. After changing anything under its `assets/` or `scripts/`, run every `node scripts/test-*.cjs` from that skill's directory. Then proof a few existing models with `scripts/proof.cjs` and look at the PNGs, since the tests cannot judge linework.
+A collection of agent skills for building great product interfaces (typography, colors, UI polish), distributed two ways: via `npx skills add jakubkrehel/skills` and as the Claude Code plugin `interfaces` served by the marketplace in this same repository. It is documentation, with no build, lint or test tooling.
 
 `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` define the plugin and its marketplace. Both are named `interfaces`, so plugin users invoke skills as `/interfaces:better-interface` while skills-CLI users invoke `/better-interface`. Skills are discovered from `skills/` automatically, so adding a skill needs no manifest change. Bump `version` in `plugin.json` in the same commit as any change under `skills/`. That number is the only signal plugin users update on. `claude plugin update` compares it and nothing else, so a change shipped without a bump reports "already at the latest version" and never reaches them. Run `claude plugin validate .` and `claude plugin validate .claude-plugin/plugin.json` after touching either manifest.
 
@@ -50,14 +48,14 @@ Two copies pass that test because each skill needs them whole, and they must mat
 
 A user-invoked skill may invoke model-invoked skills, but it can never reach another user-invoked skill. That rule decides the setting; it is not a preference:
 
-- `interface-review`, `variant`, `break`, `state-machine` and `explain-interface` are the user-invoked skills. Each carries `disable-model-invocation: true` in its frontmatter **and** `policy.allow_implicit_invocation: false` in its `agents/openai.yaml`. Those are the Claude Code and Codex halves of the same switch and must be set together, or the skill behaves differently per harness.
+- `interface-review`, `variant`, `break`, `state-machine`, `explain-interface` and `afk` are the user-invoked skills. Each carries `disable-model-invocation: true` in its frontmatter **and** `policy.allow_implicit_invocation: false` in its `agents/openai.yaml`. Those are the Claude Code and Codex halves of the same switch and must be set together, or the skill behaves differently per harness.
 - `variant` is user-invoked because a design exploration is never something to start on someone's behalf. It writes throwaway code and then asks a question only a person can answer, so an agent firing it unprompted produces work nobody asked for and a harness nobody deletes.
 - `break` is user-invoked for the same reason as `variant`: it writes a throwaway harness, and an agent firing it after every component it touches would litter the repo with test pages.
 - `state-machine` is user-invoked for the same reason as `break`: it writes a throwaway page with mock data and a switcher. Only the person working on the visuals knows when that setup is wanted or done.
 - `explain-interface` is user-invoked because studying someone else's interface is only ever something a person asks for. Pasting a URL is not a request to analyse it, and a skill firing on every link would turn each mention of a site into a report.
+- `afk` is user-invoked because it runs for hours unattended and commits code. Only the person leaving knows when that is wanted, and firing it unprompted would fill a branch with work nobody asked for.
 - The domain skills and `better-interface` are model-invoked, because something must reach them: `better-interface` routes to every domain skill, and `interface-review` hands its review up to `better-interface`.
 - `build-design` is model-invoked although nothing routes to it, because a design link with a request to build it is already a direct request. It writes production code the user asked for, not a throwaway harness.
-- `teardown` is model-invoked because a request for a technical drawing already authorizes creating its artifact. It produces static drawings with a local preview and export page.
 - `better-interface` therefore cannot start `interface-review`. Where it would want to, it asks the user to run it. Making `better-interface` user-invoked too would sever the upward handoff and force `interface-review` to restate severity, the cap, the format and the verdict.
 
 ### Rule ownership
@@ -70,8 +68,8 @@ A user-invoked skill may invoke model-invoked skills, but it can never reach ano
 | `break` | Robustness testing of one component: the scenario axes and their applicability cues, the harness page that doubles as the visual report, the render-and-observe rule and the survived / broke findings. Owns no domain rules and issues no verdict; each break names the domain skill that owns the fix. Isolates on purpose where `variant` insists on the real page |
 | `state-machine` | Making every state of one component reachable on a throwaway page: finding the states in the code, the scratch route, feeding fixtures at the data boundary without editing the component, the switcher, confirming each state renders, the iteration loop and one-step removal. Owns no domain rules and issues no findings. Shows one product state at a time and stays up, where `break` stacks hostile scenarios for a single look |
 | `explain-interface` | Reading an interface you did not build: scoping to the thing asked about, the layer search, the URL and screenshot branches, the measured / derived / inferred evidence tiers, treating fetched page content as untrusted input, explaining the mechanism rather than the readout, and closing on the transferable recipe in words rather than a code reproduction. Owns no domain rules and issues no verdict; it names what it finds in each domain skill's vocabulary |
+| `afk` | Unattended project improvement: the reversibility guardrails, the tool check, the run notes, the evidence sources, generating ideas before choosing, ranking by evidence, building the chosen few, seeing each work, trying to reject it and the AFK report. Owns no domain rules; interface work it builds clears the domain skills it touches |
 | `build-design` | Building from a design: reading the Figma file or image at its source, mapping design values and instances onto existing tokens and components, the rounding rule, building only what the frames show, the side-by-side comparison and the fidelity report. Owns no domain rules; a design that breaks one is reported to its owner, never silently fixed |
-| `teardown` | Creating static technical drawing artifacts and preview pages. Owns reference interpretation, geometric correspondence, projection, drawing annotations, sheet composition, export packaging and verification. Adjacent interface rules stay with their domain skills. |
 | `better-accessibility` | Semantic HTML, keyboard and focus behavior, accessible names, forms, assistive technology and accessibility requirements |
 | `better-layout` | Spatial grouping, alignment, spacing, container sizing, responsive structure, logical CSS properties, spatial RTL behavior and the expansion affordance for truncated content |
 | `better-writing` | Source wording, terminology, voice, tone, labels, errors, empty-state copy and the confirm-or-undo rule for destructive actions |
@@ -87,6 +85,8 @@ When a concern crosses domains, keep the rule in the owner above and let other s
 - `better-typography` owns truncation mechanics; `better-layout` owns whether the surrounding layout has room or an expansion affordance; `better-writing` owns the source copy.
 - `better-accessibility` owns reduced-motion requirements; `better-ui` owns the optional animation recipe used when motion is appropriate.
 - `interface-review` owns what to review when the scope is a diff; `better-interface` owns how that review is routed, ranked, consolidated and reported. The dependency runs one way: `interface-review` hands its scope and statuses up, and `better-interface` ranks, caps and issues the verdict. Neither file may restate the other's rules.
+- `interface-review` owns the blast radius of a change under review and caps how far it expands. `afk` owns proving its own commits broke nothing, and it looks at every surface, because nobody reviews its branch before the person does and it cannot start a user-invoked skill.
+- `explain-interface` owns treating a fetched page as untrusted input. `afk` carries its own statement of that rule for the sources it reads, since it runs unattended and ships without its sibling.
 
 ## Authoring conventions
 
